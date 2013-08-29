@@ -1,0 +1,106 @@
+#!/bin/bash
+# Author:       Thomas VIAL
+# Author URL:   http://tvi.al
+# Description:  A simple client to update DNS record from a remote client to a DNS server using nsupdate protocol, like No-IP or DynDNS for your own domain names.
+ 
+PN=`basename $0`
+ARGS=`getopt --name "$PN" --long help:,record:,dest:,type:,life: --options hr:d:t:k:l:v -- "$@"`
+if [ $? -ne 0 ]; then
+  exit 1
+fi
+eval set -- $ARGS
+
+while [ $# -gt 0 ]; do
+    case "$1" in
+        -h | --help)     HELP=yes;;
+        -r | --record)   REC="$2"; shift;;
+        -d | --dest)     DEST="$2"; shift;;
+        -t | --type)     TYPE="$2"; shift;;
+        -l | --life)     LIFE="$2"; shift;;
+        -k | --key)      KEY="$2"; shift;;
+        -v | --verbose)  VERBOSE=yes;;
+        --)              shift; break;;
+    esac
+    shift
+done
+
+usage=$( cat <<EOF
+#
+# nsupdater-client usage:
+#
+#  With static IP
+#  $0 -k Kdomain.com+xxxxxx.private -r sub.domain.com -l 600 -t A -d 192.168.1.100
+#
+#  With internal dynamic IP (where ethX is your interface name, like eth0, en1, ppp2...)
+#  $0 -k Kdomain.com+xxxxxx.private -r sub.domain.com -l 600 -t A -d if_ethX
+#
+#  With external dynamic IP 
+#  $0 -k Kdomain.com+xxxxxx.private -r sub.domain.com -l 600 -t A -d external
+#
+#  With CNAME
+#  $0 -k Kdomain.com+xxxxxx.private -r sub.domain.com -l 600 -t CNAME domain.com
+EOF
+)
+
+if [ $# -gt 0 ]; then
+  # Remaining parameters can be processed
+  for ARG in "$@"; do
+    echo "$PN: argument: $ARG"
+  done
+fi
+
+if [ -n "$HELP" ]; then
+    echo "$usage"
+    exit
+fi
+
+if [ -z "$REC" ]; then
+    echo "Error: Missing dns record to update"
+    echo "$usage"
+    exit
+fi
+
+if [ -z "$KEY" ]; then
+    echo "Error: Missing private key"
+    echo "$usage"
+    exit
+fi
+
+if [ -z "$TYPE" ]; then
+    echo "Error: Missing type (A, CNAME...)"
+    echo "$usage"
+    exit
+fi
+
+if [ -z "$LIFE" ]; then
+    echo "Error: Missing TTL"
+    echo "$usage"
+    exit
+fi
+
+if [ "$DEST" = "external" ]; then
+  echo "> Getting IP address..."
+  DEST=$(curl -s http://ip.ifusio.com)
+elif [[ "$DEST" == *if_* ]]; then
+  echo "> Getting IP address..."
+  IFACE=$(echo "$DEST" | sed 's/if_//g')
+  DEST=$(ifconfig $IFACE | awk '/inet /{gsub(/.*:/,"",$2);print$2}')
+fi
+
+OUT="/tmp/$REC.tmp"
+
+echo "> Generating update..."
+echo "update delete $REC" > $OUT
+echo "update add $REC $LIFE $TYPE $DEST" >> $OUT
+echo "send" >> $OUT
+
+echo "> Sending update to master DNS"
+nsupdate -k $KEY -v $OUT
+status=$?
+
+if [ "$status" -eq 0 ]; then
+    echo "> Done => $REC has been updated as a $TYPE crecord to $DEST"
+    exit
+fi
+
+
