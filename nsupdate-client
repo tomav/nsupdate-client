@@ -80,7 +80,7 @@ fi
 
 if [ "$DEST" = "external" ]; then
   echo "> Getting IP address..."
-  DEST=$(curl -s http://ip.ifusio.com)
+  DEST=$(curl -s http://bot.whatismyipaddress.com)
 elif [[ "$DEST" == *if_* ]]; then
   echo "> Getting IP address..."
   IFACE=$(echo "$DEST" | sed 's/if_//g')
