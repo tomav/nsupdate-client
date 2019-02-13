@@ -80,7 +80,11 @@ fi
 
 if [ "$DEST" = "external" ]; then
   echo "> Getting IP address..."
-  DEST=$(curl -s http://bot.whatismyipaddress.com)
+  DEST=$(curl -s https://bot.whatismyipaddress.com)
+  if ! echo "$DEST" | grep -Eq "^[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}$"; then
+    echo "Error: Did not receive a valid IP"
+    exit
+  fi
 elif [[ "$DEST" == *if_* ]]; then
   echo "> Getting IP address..."
   IFACE=$(echo "$DEST" | sed 's/if_//g')
